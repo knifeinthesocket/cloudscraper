@@ -8,12 +8,7 @@ const brotli = require('./lib/brotli');
 const crypto = require('crypto');
 const { deprecate } = require('util');
 
-const {
-  RequestError,
-  CaptchaError,
-  CloudflareError,
-  ParserError
-} = require('./errors');
+const { RequestError, CaptchaError, CloudflareError, ParserError } = require('./errors');
 
 let debugging = false;
 
@@ -21,7 +16,7 @@ const HOST = Symbol('host');
 
 module.exports = defaults.call(requestModule);
 
-function defaults (params) {
+function defaults(params) {
   // isCloudScraper === !isRequestModule
   const isRequestModule = this === requestModule;
 
@@ -42,18 +37,17 @@ function defaults (params) {
     gzip: true,
     agentOptions: {
       // Removes a few problematic TLSv1.0 ciphers to avoid CAPTCHA
-      ciphers: crypto.constants.defaultCipherList + ':!ECDHE+SHA:!AES128-SHA'
-    }
+      ciphers: crypto.constants.defaultCipherList + ':!ECDHE+SHA:!AES128-SHA',
+    },
   };
 
   // Object.assign requires at least nodejs v4, request only test/supports v6+
   defaultParams = Object.assign({}, defaultParams, params);
 
-  const cloudscraper = requestModule.defaults
-    .call(this, defaultParams, function (options) {
-      validateRequest(options);
-      return performRequest(options, true);
-    });
+  const cloudscraper = requestModule.defaults.call(this, defaultParams, function (options) {
+    validateRequest(options);
+    return performRequest(options, true);
+  });
 
   // There's no safety net here, any changes apply to all future requests
   // that are made with this instance and derived instances.
@@ -69,18 +63,20 @@ function defaults (params) {
   Object.defineProperty(cloudscraper, 'debug', {
     configurable: true,
     enumerable: true,
-    set (value) {
+    set(value) {
       requestModule.debug = debugging = true;
     },
-    get () {
+    get() {
       return debugging;
-    }
+    },
   });
 
   return cloudscraper;
 }
 
-function validateRequest (options) {
+function validateRequest(options) {
+  console.log('validating request!');
+
   // Prevent overwriting realEncoding in subsequent calls
   if (!('realEncoding' in options)) {
     // Can't just do the normal options.encoding || 'utf8'
@@ -95,24 +91,28 @@ function validateRequest (options) {
   options.encoding = null;
 
   if (isNaN(options.challengesToSolve)) {
-    throw new TypeError('Expected `challengesToSolve` option to be a number, ' +
-      'got ' + typeof (options.challengesToSolve) + ' instead.');
+    throw new TypeError(
+      'Expected `challengesToSolve` option to be a number, ' + 'got ' + typeof options.challengesToSolve + ' instead.',
+    );
   }
 
   if (isNaN(options.cloudflareMaxTimeout)) {
-    throw new TypeError('Expected `cloudflareMaxTimeout` option to be a number, ' +
-      'got ' + typeof (options.cloudflareMaxTimeout) + ' instead.');
+    throw new TypeError(
+      'Expected `cloudflareMaxTimeout` option to be a number, ' +
+        'got ' +
+        typeof options.cloudflareMaxTimeout +
+        ' instead.',
+    );
   }
 
   if (typeof options.requester !== 'function') {
-    throw new TypeError('Expected `requester` option to be a function, got ' +
-      typeof (options.requester) + ' instead.');
+    throw new TypeError('Expected `requester` option to be a function, got ' + typeof options.requester + ' instead.');
   }
 }
 
 // This function is wrapped to ensure that we get new options on first call.
 // The options object is reused in subsequent calls when calling it directly.
-function performRequest (options, isFirstRequest) {
+function performRequest(options, isFirstRequest) {
   // This should be the default export of either request or request-promise.
   const requester = options.requester;
 
@@ -127,8 +127,7 @@ function performRequest (options, isFirstRequest) {
 
   // If the requester is not request-promise, ensure we get a callback.
   if (typeof request.callback !== 'function') {
-    throw new TypeError('Expected a callback function, got ' +
-        typeof (request.callback) + ' instead.');
+    throw new TypeError('Expected a callback function, got ' + typeof request.callback + ' instead.');
   }
 
   // We only need the callback from the first request.
@@ -139,15 +138,13 @@ function performRequest (options, isFirstRequest) {
     options.callback = request.callback;
   }
 
-  request.removeAllListeners('error')
-    .once('error', function (error) {
-      onRequestResponse(options, error);
-    });
+  request.removeAllListeners('error').once('error', function (error) {
+    onRequestResponse(options, error);
+  });
 
-  request.removeAllListeners('complete')
-    .once('complete', function (response, body) {
-      onRequestResponse(options, null, response, body);
-    });
+  request.removeAllListeners('complete').once('complete', function (response, body) {
+    onRequestResponse(options, null, response, body);
+  });
 
   // Indicate that this is a cloudscraper request
   request.cloudscraper = true;
@@ -156,7 +153,7 @@ function performRequest (options, isFirstRequest) {
 
 // The argument convention is options first where possible, options
 // always before response, and body always after response.
-function onRequestResponse (options, error, response, body) {
+function onRequestResponse(options, error, response, body) {
   const callback = options.callback;
 
   // Encoding is null so body should be a buffer object
@@ -208,7 +205,7 @@ function onRequestResponse (options, error, response, body) {
   }
 }
 
-function onCloudflareResponse (options, response, body) {
+function onCloudflareResponse(options, response, body) {
   const callback = options.callback;
 
   if (body.length < 1) {
@@ -229,14 +226,14 @@ function onCloudflareResponse (options, response, body) {
     return callback(error);
   }
 
-  const isChallenge = stringBody.indexOf('a = document.getElementById(\'jschl-answer\');') !== -1;
+  const isChallenge = stringBody.match(/document.getElementById\(\'jschl\+answer\'\.(.*)$/);
 
   if (isChallenge) {
     return onChallenge(options, response, stringBody);
   }
 
-  const isRedirectChallenge = stringBody.indexOf('You are being redirected') !== -1 ||
-    stringBody.indexOf('sucuri_cloudproxy_js') !== -1;
+  const isRedirectChallenge =
+    stringBody.indexOf('You are being redirected') !== -1 || stringBody.indexOf('sucuri_cloudproxy_js') !== -1;
 
   if (isRedirectChallenge) {
     return onRedirectChallenge(options, response, stringBody);
@@ -251,9 +248,10 @@ function onCloudflareResponse (options, response, body) {
   onRequestComplete(options, response, body);
 }
 
-function detectRecaptchaVersion (body) {
+function detectRecaptchaVersion(body) {
   // New version > Dec 2019
-  if (/__cf_chl_captcha_tk__=(.*)/i.test(body)) { // Test for ver2 first, as it also has ver2 fields
+  if (/__cf_chl_captcha_tk__=(.*)/i.test(body)) {
+    // Test for ver2 first, as it also has ver2 fields
     return 'ver2';
     // Old version < Dec 2019
   } else if (body.indexOf('why_captcha') !== -1 || /cdn-cgi\/l\/chk_captcha/i.test(body)) {
@@ -263,7 +261,7 @@ function detectRecaptchaVersion (body) {
   return false;
 }
 
-function validateResponse (options, response, body) {
+function validateResponse(options, response, body) {
   // Finding captcha
   // Old version < Dec 2019
   const recaptchaVer = detectRecaptchaVersion(body);
@@ -273,22 +271,27 @@ function validateResponse (options, response, body) {
     throw new CaptchaError('captcha', options, response);
   }
 
-  // Trying to find '<span class="cf-error-code">1006</span>'
-  const match = body.match(/<\w+\s+class="cf-error-code">(.*)<\/\w+>/i);
+  // Trying to find '<span class="cf-error-code">1006</span>' BUT not in on-page online scripts
+  const scriptElementRegexp = /\'<\w+\s+class="cf-error-code">(.*)<\/\w+>\'/i;
+  const domElementRegexp = /<\w+\s+class="cf-error-code">(.*)<\/\w+>/i;
+  const scriptElementMatch = body.match(scriptElementRegexp);
+  const domElementMatch = body.match(domElementRegexp);
 
-  if (match) {
-    const code = parseInt(match[1]);
+  if (domElementMatch && !scriptElementMatch) {
+    const code = parseInt(domElementMatch[1]);
     throw new CloudflareError(code, options, response);
   }
 
   return false;
 }
 
-function onChallenge (options, response, body) {
+function onChallenge(options, response, body) {
   const callback = options.callback;
   const uri = response.request.uri;
   // The query string to send back to Cloudflare
-  const payload = { /* s, jschl_vc, pass, jschl_answer */ };
+  const payload = {
+    /* s, jschl_vc, pass, jschl_answer */
+  };
 
   let cause;
   let error;
@@ -311,7 +314,7 @@ function onChallenge (options, response, body) {
     payload[hiddenInputName] = match[2];
   }
 
-  match = body.match(/name="jschl_vc" value="(\w+)"/);
+  match = body.match(/value=\"(\w+)\"\sid=\"\S+\"\sname=\"jschl_vc\"/);
   if (!match) {
     cause = 'challengeId (jschl_vc) extraction failed';
     return callback(new ParserError(cause, options, response));
@@ -327,7 +330,9 @@ function onChallenge (options, response, body) {
 
   payload.pass = match[1];
 
-  match = body.match(/getElementById\('cf-content'\)[\s\S]+?setTimeout.+?\r?\n([\s\S]+?a\.value\s*=.+?)\r?\n(?:[^{<>]*},\s*(\d{4,}))?/);
+  match = body.match(
+    /getElementById\('cf-content'\)[\s\S]+?setTimeout.+?\r?\n([\s\S]+?a\.value\s*=.+?)\r?\n(?:[^{<>]*},\s*(\d{4,}))?/,
+  );
   if (!match) {
     cause = 'setTimeout callback extraction failed';
     return callback(new ParserError(cause, options, response));
@@ -339,7 +344,7 @@ function onChallenge (options, response, body) {
 
       if (timeout > options.cloudflareMaxTimeout) {
         if (debugging) {
-          console.warn('Cloudflare\'s timeout is excessive: ' + (timeout / 1000) + 's');
+          console.warn("Cloudflare's timeout is excessive: " + timeout / 1000 + 's');
         }
 
         timeout = options.cloudflareMaxTimeout;
@@ -398,14 +403,16 @@ function onChallenge (options, response, body) {
 }
 
 // Parses the reCAPTCHA form and hands control over to the user
-function onCaptcha (options, response, body) {
+function onCaptcha(options, response, body) {
   const recaptchaVer = detectRecaptchaVersion(body);
   const isRecaptchaVer2 = recaptchaVer === 'ver2';
   const callback = options.callback;
   // UDF that has the responsibility of returning control back to cloudscraper
   const handler = options.onCaptcha;
   // The form data to send back to Cloudflare
-  const payload = { /* r|s, g-re-captcha-response */ };
+  const payload = {
+    /* r|s, g-re-captcha-response */
+  };
 
   let cause;
   let match;
@@ -464,7 +471,7 @@ function onCaptcha (options, response, body) {
     siteKey,
     uri: response.request.uri,
     form: payload,
-    version: recaptchaVer
+    version: recaptchaVer,
   };
 
   if (isRecaptchaVer2) {
@@ -486,7 +493,7 @@ function onCaptcha (options, response, body) {
     enumerable: false,
     get: deprecate(function () {
       return response.request.uri.href;
-    }, 'captcha.url is deprecated. Please use captcha.uri instead.')
+    }, 'captcha.url is deprecated. Please use captcha.uri instead.'),
   });
 
   // Adding formData
@@ -547,7 +554,7 @@ function onCaptcha (options, response, body) {
   }
 }
 
-function onSubmitCaptcha (options, response) {
+function onSubmitCaptcha(options, response) {
   const callback = options.callback;
   const uri = response.request.uri;
   const isRecaptchaVer2 = response.captcha.version === 'ver2';
@@ -559,7 +566,7 @@ function onSubmitCaptcha (options, response) {
 
   if (isRecaptchaVer2) {
     options.qs = {
-      __cf_chl_captcha_tk__: response.captcha.formActionUri.match(/__cf_chl_captcha_tk__=(.*)/)[1]
+      __cf_chl_captcha_tk__: response.captcha.formActionUri.match(/__cf_chl_captcha_tk__=(.*)/)[1],
     };
 
     options.form = response.captcha.form;
@@ -582,7 +589,7 @@ function onSubmitCaptcha (options, response) {
   performRequest(options, false);
 }
 
-function onRedirectChallenge (options, response, body) {
+function onRedirectChallenge(options, response, body) {
   const callback = options.callback;
   const uri = response.request.uri;
 
@@ -611,7 +618,7 @@ function onRedirectChallenge (options, response, body) {
   performRequest(options, false);
 }
 
-function onRequestComplete (options, response, body) {
+function onRequestComplete(options, response, body) {
   const callback = options.callback;
 
   if (typeof options.realEncoding === 'string') {

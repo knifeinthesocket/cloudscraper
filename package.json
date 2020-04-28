@@ -1,5 +1,5 @@
 {
-  "name": "cloudscraper",
+  "name": "@knifeinthesocket/cloudscraper",
   "version": "4.6.0",
   "description": "Bypasses cloudflare's anti-ddos page",
   "main": "index.js",
