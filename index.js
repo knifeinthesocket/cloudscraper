@@ -75,8 +75,6 @@ function defaults(params) {
 }
 
 function validateRequest(options) {
-  console.log('validating request!');
-
   // Prevent overwriting realEncoding in subsequent calls
   if (!('realEncoding' in options)) {
     // Can't just do the normal options.encoding || 'utf8'
